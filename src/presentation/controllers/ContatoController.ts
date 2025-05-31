@@ -8,18 +8,24 @@ import { Contato } from "@domain/entities/Contato";
 import { CreateContatoUseCase } from "@application/useCases/CreateContatoUseCase";
 import { GetContatosByUserIdUseCase } from "@application/useCases/GetContatosByUserIdUseCase";
 import { ContatoRepository } from "@infrastructure/repositories/ContatoRepository"; 
-import { UserRepository } from "@infrastructure/repositories/UserRepository"; // Needed for user validation
+import { UserRepository } from "@infrastructure/repositories/UserRepository";
 import { ContatoDTO } from "@presentation/dtos/ContatoDTO";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 
-// Instantiate repositories and use cases (Dependency Injection could be used here in a real app)
-const contatoRepository = new ContatoRepository();
-const userRepository = new UserRepository(); // Needed to check if user exists
-const createContatoUseCase = new CreateContatoUseCase(contatoRepository);
-const getContatosByUserIdUseCase = new GetContatosByUserIdUseCase(contatoRepository);
-
 export class ContatoController {
+    private contatoRepository: ContatoRepository;
+    private userRepository: UserRepository;
+    private createContatoUseCase: CreateContatoUseCase;
+    private getContatosByUserIdUseCase: GetContatosByUserIdUseCase;
+
+    constructor() {
+        // Inicializa os repositórios e use cases no constructor
+        this.contatoRepository = new ContatoRepository();
+        this.userRepository = new UserRepository();
+        this.createContatoUseCase = new CreateContatoUseCase(this.contatoRepository);
+        this.getContatosByUserIdUseCase = new GetContatosByUserIdUseCase(this.contatoRepository);
+    }
 
     async create(req: Request, res: Response): Promise<Response> {
         const contatoDTO = plainToInstance(ContatoDTO, req.body);
@@ -32,7 +38,7 @@ export class ContatoController {
 
         try {
             // Check if the user exists before creating the contact
-            const userExists = await userRepository.findById(contatoDTO.Id_usuario);
+            const userExists = await this.userRepository.findById(contatoDTO.Id_usuario);
             if (!userExists) {
                 return res.status(404).json({ message: `Usuário com ID ${contatoDTO.Id_usuario} não encontrado.` });
             }
@@ -47,7 +53,7 @@ export class ContatoController {
             );
 
             // Execute use case
-            const savedContato = await createContatoUseCase.execute(contato);
+            const savedContato = await this.createContatoUseCase.execute(contato);
             return res.status(201).json(savedContato);
 
         } catch (error: any) {
@@ -68,22 +74,10 @@ export class ContatoController {
         }
 
         try {
-             // Optional: Check if the user exists before fetching contacts (already done in use case if injected)
-             // const userExists = await userRepository.findById(userId);
-             // if (!userExists) {
-             //     return res.status(404).json({ message: `Usuário com ID ${userId} não encontrado.` });
-             // }
-
             // Execute use case
-            const contatos = await getContatosByUserIdUseCase.execute(userId);
+            const contatos = await this.getContatosByUserIdUseCase.execute(userId);
 
             if (!contatos || contatos.length === 0) {
-                // Retorna 200 com array vazio se o usuário existe mas não tem contatos, 
-                // ou se o usuário não existe (o use case pode ou não verificar isso, dependendo da implementação)
-                // Para ser mais preciso, o ideal seria o use case lançar um erro se o usuário não existir,
-                // e o controller tratar esse erro para retornar 404.
-                // No momento, se o usuário não existe, findByUserId retornará null/vazio, resultando em 200 com [] ou 404 aqui.
-                // Vamos manter o 404 se não houver contatos, assumindo que o front-end pode querer distinguir.
                 return res.status(404).json({ message: `Nenhum contato encontrado para o usuário com ID ${userId}.` });
             }
 
@@ -95,4 +89,3 @@ export class ContatoController {
         }
     }
 }
-

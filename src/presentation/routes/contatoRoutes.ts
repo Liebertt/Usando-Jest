@@ -7,11 +7,16 @@ import { Router, Request, Response, NextFunction } from "express";
 import { ContatoController } from "../controllers/ContatoController";
 
 const contatoRoutes = Router();
-const contatoController = new ContatoController();
+
+// Função para criar o controller de forma lazy (apenas quando necessário)
+function getContatoController(): ContatoController {
+    return new ContatoController();
+}
 
 // Rota para criar um novo contato
 contatoRoutes.post("/contatos", async (req: Request, res: Response, next: NextFunction) => {
     try {
+        const contatoController = getContatoController();
         await contatoController.create(req, res);
     } catch (error) {
         next(error);
@@ -21,6 +26,7 @@ contatoRoutes.post("/contatos", async (req: Request, res: Response, next: NextFu
 // Rota para buscar contatos por ID do usuário
 contatoRoutes.get("/contatos/usuario/:userId", async (req: Request, res: Response, next: NextFunction) => {
     try {
+        const contatoController = getContatoController();
         await contatoController.getByUserId(req, res);
     } catch (error) {
         next(error);
@@ -28,4 +34,3 @@ contatoRoutes.get("/contatos/usuario/:userId", async (req: Request, res: Respons
 });
 
 export default contatoRoutes;
-

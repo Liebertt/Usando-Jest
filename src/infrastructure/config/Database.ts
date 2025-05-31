@@ -1,4 +1,3 @@
-// infrastructure/config/Database.ts (ou o caminho que você estiver usando)
 import sqlite3 from "sqlite3";
 import path from "path";
 import fs from "fs";
@@ -19,27 +18,39 @@ export class Database {
             }
 
             console.log("Tentando inicializar o banco de dados...");
+            
+            // Remove o arquivo existente se estiver corrompido
+            if (fs.existsSync(this.dbPath)) {
+                try {
+                    // Tenta verificar se o arquivo é um banco válido
+                    const stats = fs.statSync(this.dbPath);
+                    if (stats.size === 0) {
+                        console.log("Arquivo de banco vazio detectado, removendo...");
+                        fs.unlinkSync(this.dbPath);
+                    }
+                } catch (error) {
+                    console.log("Erro ao verificar arquivo de banco, removendo...", error);
+                    fs.unlinkSync(this.dbPath);
+                }
+            }
+
             const verboseSqlite3 = sqlite3.verbose();
-            // Atribui a this.db aqui para que possa ser usado nos callbacks
             const newDbInstance = new verboseSqlite3.Database(this.dbPath, (err) => {
                 if (err) {
                     console.error(`Erro ao conectar ao banco de dados SQLite (${this.dbPath}):`, err.message);
                     this.db = null;
                     reject(err);
                 } else {
-                    this.db = newDbInstance; // Conexão estabelecida, atribui à propriedade estática
+                    this.db = newDbInstance;
                     console.log(`Conectado ao banco de dados SQLite '${this.dbPath}'`);
 
                     this.db.run("PRAGMA foreign_keys = ON;", (pragmaErr) => {
                         if (pragmaErr) {
                             console.error("Erro ao habilitar chaves estrangeiras:", pragmaErr.message);
-                            // Você pode decidir rejeitar a promise aqui se for crítico
-                            // reject(pragmaErr);
-                            // return;
                         } else {
                             console.log("Chaves estrangeiras habilitadas.");
                         }
-                        // Continua para inicializar o schema mesmo se o pragma tiver um erro não crítico
+                        // Continua para inicializar o schema
                         this.initializeSchemaWithPromise().then(resolve).catch(reject);
                     });
                 }
@@ -50,32 +61,32 @@ export class Database {
     private static initializeSchemaWithPromise(): Promise<void> {
         return new Promise((resolve, reject) => {
             if (!this.db) {
-                // Esta verificação é mais uma segurança, o fluxo normal não deveria chegar aqui sem this.db
                 reject(new Error("Tentativa de inicializar schema sem conexão estabelecida com o DB."));
                 return;
             }
 
             const dbInstance = this.db;
             let sqlScript: string;
+            
             try {
                 console.log(`Tentando ler script SQL de: ${this.sqlScriptPath}`);
-                sqlScript = fs.readFileSync(this.sqlScriptPath).toString();
-                 // Lembre-se: dataBase.sql deve conter apenas CREATE TABLE IF NOT EXISTS User (...)
+                sqlScript = fs.readFileSync(this.sqlScriptPath, 'utf8');
             } catch (readErr: any) {
                 console.error(`Erro ao ler o arquivo SQL (${this.sqlScriptPath}):`, readErr.message);
                 reject(new Error(`Falha ao ler script SQL: ${readErr.message}`));
                 return;
             }
 
-            dbInstance.get("SELECT name FROM sqlite_master WHERE type='table' AND name='User'", (err, row) => {
+            // Verifica se as tabelas já existem
+            dbInstance.get("SELECT name FROM sqlite_master WHERE type='table' AND name='Usuario'", (err, row) => {
                 if (err) {
-                    console.error("Erro ao verificar a existência da tabela User:", err.message);
+                    console.error("Erro ao verificar a existência da tabela Usuario:", err.message);
                     reject(err);
                     return;
                 }
 
                 if (!row) {
-                    console.log("Tabela 'User' não encontrada. Executando script de criação...");
+                    console.log("Tabela 'Usuario' não encontrada. Executando script de criação...");
                     dbInstance.exec(sqlScript, (execErr) => {
                         if (execErr) {
                             console.error("Erro ao executar script SQL para criar tabelas:", execErr.message);
@@ -86,7 +97,7 @@ export class Database {
                         }
                     });
                 } else {
-                    console.log("Tabela 'User' já existe.");
+                    console.log("Tabela 'Usuario' já existe.");
                     resolve();
                 }
             });
@@ -114,7 +125,7 @@ export class Database {
                     }
                 });
             } else {
-                resolve(); // Nenhuma conexão para fechar
+                resolve();
             }
         });
     }

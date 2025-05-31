@@ -1,40 +1,44 @@
 import express from "express";
 import dotenv from "dotenv";
-import { Database } from "@infrastructure/config/Database"; // Ajustado caminho relativo
+import { Database } from "@infrastructure/config/Database";
 
 dotenv.config();
 
 async function startApp() {
-    // Inicializa o banco de dados (SQLite neste caso)
-    Database.init(); 
-    // Não há necessidade de 'await' aqui para SQLite na implementação atual, 
-    // mas mantemos a estrutura async para consistência ou futuras mudanças.
-    console.log("Tentando inicializar o banco de dados..."); // Log adicionado
+    try {
+        console.log("Tentando inicializar o banco de dados...");
+        
+        // Aguarda a inicialização do banco de dados
+        await Database.init();
+        console.log("Banco de dados inicializado com sucesso!");
 
-    const app = express();
-    app.use(express.json());
+        const app = express();
+        app.use(express.json());
 
-    // Importa e usa as rotas de usuário
-    const userRoutes = await import("./presentation/routes/userRoutes"); // Ajustado caminho relativo
-    app.use("/api", userRoutes.default);
+        // Importa as rotas APÓS a inicialização do banco
+        const { default: userRoutes } = await import("./presentation/routes/userRoutes");
+        app.use("/api", userRoutes);
 
-    // Importa e usa as rotas de contato
-    const contatoRoutes = await import("./presentation/routes/contatoRoutes"); // Ajustado caminho relativo
-    app.use("/api", contatoRoutes.default);
+        const { default: contatoRoutes } = await import("./presentation/routes/contatoRoutes");
+        app.use("/api", contatoRoutes);
 
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => console.log(`Aplicação rodando na porta ${PORT}`));
+        const PORT = process.env.PORT || 3000;
+        app.listen(PORT, () => {
+            console.log(`Aplicação rodando na porta ${PORT}`);
+        });
 
-    // Graceful shutdown (opcional mas recomendado)
-    process.on('SIGINT', () => {
-        console.log('\nRecebido SIGINT. Fechando conexão com o banco de dados...');
-        Database.close();
-        process.exit(0);
-    });
+        // Graceful shutdown
+        process.on('SIGINT', async () => {
+            console.log('\nRecebido SIGINT. Fechando conexão com o banco de dados...');
+            await Database.close();
+            process.exit(0);
+        });
+
+    } catch (error) {
+        console.error("Erro ao iniciar a aplicação:", error);
+        await Database.close();
+        process.exit(1);
+    }
 }
 
-startApp().catch(error => {
-    console.error("Erro ao iniciar a aplicação:", error);
-    Database.close(); // Tenta fechar o DB mesmo em caso de erro na inicialização
-    process.exit(1);
-});
+startApp();
