@@ -38,4 +38,3 @@ startApp().catch(error => {
     Database.close(); // Tenta fechar o DB mesmo em caso de erro na inicialização
     process.exit(1);
 });
-
